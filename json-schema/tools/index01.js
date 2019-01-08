@@ -1,5 +1,8 @@
 const fs = require('fs');
-
+const cycle = require('./cycle')
+const CircularJSON = require('./circular-json.js')
+const Flatted = require('./flatted')
+var stringify = require('./json-stringify-safe');
 const CTT = require('./json-schema/common/CCTS_CCT_SchemaModule-2.1.json')
 const CAC = require('./json-schema/common/UBL-CommonAggregateComponents-2.1.json')
 const CBC = require('./json-schema/common/UBL-CommonBasicComponents-2.1.json')
@@ -16,16 +19,6 @@ lookup.set('UBL-CommonExtensionComponents-2.1', CEC)
 lookup.set('UBL-ExtensionContentDataType-2.1', ECD)
 lookup.set('UBL-QualifiedDataTypes-2.1', QDT)
 lookup.set('UBL-UnqualifiedDataTypes-2.1', UDT)
-
-const circulars = new Map()
-circulars.set('SubsidiaryLocation', '#/definitions/SubsidiaryLocation')
-circulars.set('HeadOfficeParty', '#/definitions/HeadOfficeParty')
-circulars.set('Party', '#/definitions/Party')
-circulars.set('IssuerParty', '#/definitions/IssuerParty')
-circulars.set('SignatoryParty', '#/definitions/SignatoryParty')
-circulars.set('AgentParty', '#/definitions/AgentParty')
-circulars.set('NotaryParty', '#/definitions/NotaryParty')
-circulars.set('WitnessParty', '#/definitions/WitnessParty')
 
 let deRef = (ref, share) => {
     if (ref.hasOwnProperty('properties')) {
@@ -61,23 +54,19 @@ let deRef = (ref, share) => {
     }
 }
 
-let isCircularItem = (iterator, items) => {
-    return circulars.has(iterator) && circulars.get(iterator) === items['$ref']
-}
 
 let getProperty = (ObjectWithProperties) => {
     let properties = ObjectWithProperties['properties']
     if (properties !== undefined) {
         for (const iterator of Object.keys(properties)) {
             if (properties[iterator].hasOwnProperty('items') && !properties[iterator].hasOwnProperty('properties')) {
-                if (!isCircularItem(iterator, properties[iterator]['items'])) {
-                    properties[iterator]['properties'] = deRef(properties[iterator]['items'])['properties']
-                    getProperty(properties[iterator])
-                }
+                properties[iterator]['properties'] = deRef(properties[iterator]['items'])['properties']
+                getProperty(properties[iterator])
             }
         }
     }
 }
+
 
 let derefCAC = (ref) => {
     let derefSchema = deRef(ref)
@@ -85,23 +74,43 @@ let derefCAC = (ref) => {
     return derefSchema
 }
 
-let writeFile = (filename, content)=>{
-    fs.writeFile(filename, JSON.stringify(content), function (err) {
-        if (err) {
-            return console.log(err);
+const getCircularReplacer = () => {
+    const seen = new WeakSet();
+    return (key, value) => {
+        if (typeof value === "object" && value !== null) {
+            if (seen.has(value)) {
+                return;
+            }
+            seen.add(value);
         }
-        console.log("The file was saved!");
-    })
-}
+        return value;
+    };
+};
 
-const Order = require('./json-schema/maindoc/UBL-Order-2.1.json')
-const schemaBuyerCustomerParty = Order["definitions"]['Order']['properties']['BuyerCustomerParty']['items']
-const schemaBuyerCustomerPartyJson = derefCAC(schemaBuyerCustomerParty)
-writeFile('schemaBuyerCustomerParty.json', schemaBuyerCustomerPartyJson)
 
-const schemaParty = require('./json-schema/common/UBL-CommonAggregateComponents-2.1.json')['definitions']['Party']
-const schemaPartyyJson = derefCAC(schemaParty)
-writeFile('party.json', schemaPartyyJson)
+/***
+ * var jsonString = JSON.stringify(JSON.decycle(jsonObject));
+ * var restoredObject = JSON.retrocycle(JSON.parse(jsonString));
+ ***/
+// const Order = require('./json-schema/maindoc/UBL-Order-2.1.json')
+// const schemaOrder = Order["definitions"][Object.keys(Order["definitions"])[0]]
+// const schemaBuyerCustomerParty = Order["definitions"]['Order']['properties']['BuyerCustomerParty']['items']
+const schemaParty = require('./UBL-CommonAggregateComponents-Party.json')['definitions']['Party']
+const orderDefObject = derefCAC(schemaParty)
+const decycleObject = JSON.decycle(orderDefObject)
+ fs.writeFile("orderDefObject1.json", JSON.stringify(decycleObject), function (err) {
+// fs.writeFile("orderDefObject1.json", CircularJSON.stringify(orderDefObject), function (err) {
+// fs.writeFile("orderDefObject1.json", Flatted.stringify(orderDefObject), function (err) {
+// fs.writeFile("orderDefObject1.json", stringify(orderDefObject, null, 2), function (err) {
+
+// fs.writeFile("orderDefObject1.json", JSON.stringify(orderDefObject, getCircularReplacer()), function (err) {
+
+    if (err) {
+        return console.log(err);
+    }
+
+    console.log("The file was saved!");
+})
 
 
 

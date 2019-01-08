@@ -181,5 +181,6 @@ var CircularJSON = {
   // The default parser is the native JSON.
   parser: JSON
 };
+
 module.exports = CircularJSON
 
