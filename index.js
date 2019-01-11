@@ -65,15 +65,33 @@ let isCircularItem = (iterator, items) => {
     return circulars.has(iterator) && circulars.get(iterator) === items['$ref']
 }
 
+let renameProperty = (obj, oldPropertyName, newPropertyName) => {
+    delete Object.assign(obj, { [newPropertyName]: obj[oldPropertyName] })[oldPropertyName];
+}
+
+let isObject = (obj) => {
+    return obj instanceof Object
+}
+
 let getProperty = (ObjectWithProperties) => {
     let properties = ObjectWithProperties['properties']
     if (properties !== undefined) {
         for (const iterator of Object.keys(properties)) {
-            if (properties[iterator].hasOwnProperty('items') && !properties[iterator].hasOwnProperty('properties')) {
+            if (properties[iterator].hasOwnProperty('items') && properties[iterator]['items'].hasOwnProperty('$ref')) {
                 if (!isCircularItem(iterator, properties[iterator]['items'])) {
-                    properties[iterator]['properties'] = deRef(properties[iterator]['items'])['properties']
-                    getProperty(properties[iterator])
+                    properties[iterator]['items']= deRef(properties[iterator]['items'])                                     
+                    getProperty(properties[iterator]['items'])
                 }
+                else {
+                    //temporary. should set by $ref
+                    if (properties[iterator]['type'] === 'array') {
+                        properties[iterator]['type'] = 'string'
+                    }
+                    properties[iterator]['properties'] = {}
+                    if (properties[iterator]['items']['$ref']){
+                        delete properties[iterator]['items']['$ref']
+                    }
+                }                
             }
         }
     }
@@ -85,7 +103,7 @@ let derefCAC = (ref) => {
     return derefSchema
 }
 
-let writeFile = (filename, content)=>{
+let writeFile = (filename, content) => {
     fs.writeFile(filename, JSON.stringify(content), function (err) {
         if (err) {
             return console.log(err);
